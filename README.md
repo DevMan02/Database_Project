@@ -28,7 +28,7 @@ Include trigger e vincoli per garantire l'integrità referenziale.
 ### Prerequisiti
 - PostgreSQL 9.x o superiore
 - R e RStudio (per analisi dati)
-- Librerie R: `RPostgreSQL`, `DBI`, `dplyr`, `readxl`, `ggplot2`
+- Librerie R: `RPostgres`, `DBI`, `dplyr`, `readxl`, `ggplot2`
 
 ### Setup Database
 
@@ -40,7 +40,8 @@ CREATE DATABASE postgres;
 
 2. **Importare lo schema**:
 ```bash
-psql -U postgres -d postgres -f "Progetto Basi Di Dati/db.sql"
+cd "Progetto Basi Di Dati"
+psql -U postgres -d postgres -f db.sql
 ```
 
 3. **Configurare le credenziali**: Modificare in `ProgettoBasi_Analisi.Rmd`:
