@@ -1,0 +1,162 @@
+---
+title: "Progetto Basi"
+author: "Luca Deano, Devin Mancardi, Gianfranco Mauro, Davide Volpi"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("RPostgreSQL")
+library("DBI")
+library("odbc")
+library("dplyr")
+library("readr")
+library("tidyverse")
+library("readxl")
+library("ggplot2")
+```
+
+# CONNESSIONE A POSTGRESQL
+```{r}
+con <- dbConnect(RPostgres::Postgres(),
+                 dbname="postgres",
+                 host="localhost",
+                 port=5432,
+                 user="postgres",
+                 password="password")
+```
+
+# POPOLAZIONE DELLA BASE DI DATI
+```{r}
+# ENTITA'
+CorsoDAcqua<-read_excel("Contenuto tabelle.xlsx",sheet="Corso D'Acqua")
+Lago<-read_excel("Contenuto tabelle.xlsx",sheet="Lago")
+Nazione<-read_excel("Contenuto tabelle.xlsx",sheet="Nazione")
+Mare<-read_excel("Contenuto tabelle.xlsx",sheet="Mare")
+Attraversa<-read_excel("Contenuto tabelle.xlsx",sheet="Attraversa")
+Confina<-read_excel("Contenuto tabelle.xlsx",sheet="Confina")
+Bagna<-read_excel("Contenuto tabelle.xlsx",sheet="Bagna")
+
+```
+
+```{r}
+dbExecute(con, "BEGIN;")
+dbExecute(con, "SET session_replication_role = 'replica';")
+tryCatch({
+
+dbExecute(con, "DELETE FROM \"CORSO D’ ACQUA\";")
+dbExecute(con, "DELETE FROM \"attraversa\";")
+dbExecute(con, "DELETE FROM \"bagna\";")
+dbExecute(con, "DELETE FROM \"confina\";")
+dbExecute(con, "DELETE FROM \"lago\";")
+dbExecute(con, "DELETE FROM \"mare\";")
+dbExecute(con, "DELETE FROM \"nazione\";")
+
+dbExecute(con, "SET session_replication_role = 'origin';")
+dbExecute(con, "COMMIT;")
+}, error = function(e) {
+  dbExecute(con, "SET session_replication_role = 'origin';")
+  dbExecute(con, "ROLLBACK;")
+  print(paste("Errore durante la cancellazione:", e$message))
+})
+
+```
+
+```{r}
+dbExecute(con, "BEGIN;")
+dbExecute(con, "SET session_replication_role = 'replica';")
+tryCatch({
+
+dbWriteTable( con,"CORSO D’ ACQUA", CorsoDAcqua , append = TRUE, row.names = FALSE) 
+dbWriteTable( con,"attraversa", Attraversa , append = TRUE, row.names = FALSE) 
+dbWriteTable( con,"bagna", Bagna , append = TRUE, row.names = FALSE) 
+dbWriteTable( con,"confina", Confina , append = TRUE, row.names = FALSE) 
+dbWriteTable( con,"lago", Lago , append = TRUE, row.names = FALSE) 
+dbWriteTable( con,"mare", Mare , append = TRUE, row.names = FALSE) 
+dbWriteTable( con,"nazione", Nazione , append = TRUE, row.names = FALSE) 
+
+dbExecute(con, "SET session_replication_role = 'origin';")
+dbExecute(con, "COMMIT;")
+}, error = function(e) {
+  # In caso di errore, eseguire il rollback della transazione
+  dbExecute(con, "SET session_replication_role = 'origin';")
+  dbExecute(con, "ROLLBACK;")
+  print(paste("Errore durante l'inserimento:", e$message))
+})
+
+```
+
+```{r}
+Operazione9 <-dbGetQuery ( con,
+                          "SELECT nomenazione, COUNT(nomefiume)
+                           FROM  attraversa
+                           GROUP BY nomenazione;")
+      ylim<-c(0,10)
+      barplot (as.numeric ( Operazione9$count),
+      main = " Distribuzione dei fiumi ",
+      ylab = " Numero ",
+      names.arg = Operazione9 $ nomenazione ,
+      col = "blue",
+      las=2,
+      ylim=ylim
+)
+```
+```{r}
+Operazione9.1 <- dbGetQuery(con,
+  "SELECT n.nomenazione, COUNT(a.nomefiume) as numero_fiumi, n.superficie
+   FROM attraversa a
+   JOIN nazione n ON a.nomenazione = n.nomenazione
+   GROUP BY n.nomenazione, n.superficie;")
+
+# Calcola il numero normalizzato di fiumi
+Operazione9.1$numero_normalizzato <- Operazione9.1$numero_fiumi / Operazione9.1$superficie
+
+ylim <- c(0, 30)
+
+# Crea il barplot con i nomi dell'asse x in verticale
+barplot(Operazione9.1$numero_normalizzato* 1e6,
+        main = "Distribuzione normalizzata dei fiumi per nazione",
+        ylab = "Numero normalizzato",
+        names.arg = Operazione9.1$nomenazione,
+        col = "blue",
+        las = 2,  # Imposta l'orientamento del testo dell'asse x in verticale
+        ylim=ylim
+)
+```
+```{r}
+Operazione10 <-dbGetQuery ( con,
+                          "SELECT nomenazione, COUNT(nomelago)
+                           FROM  bagna
+                           GROUP BY nomenazione;")
+      barplot (as.numeric ( Operazione10$count),
+      main = " Distribuzione dei laghi ",
+      ylab = " Numero ",
+      names.arg = Operazione10 $ nomenazione ,
+      col = "lightblue",
+      las=2
+)
+```
+```{r}
+Operazione10.1 <- dbGetQuery(con,
+  "SELECT n.nomenazione, COUNT(b.nomelago) as numero_laghi, n.superficie
+   FROM bagna b
+   JOIN nazione n ON b.nomenazione = n.nomenazione
+   GROUP BY n.nomenazione, n.superficie;")
+
+Operazione10.1$numero_normalizzato <- Operazione10.1$numero_laghi / Operazione10.1$superficie
+
+ylim <- c(0, 25)
+
+barplot(Operazione10.1$numero_normalizzato* 1e6,
+        main = "Distribuzione normalizzata dei laghi per nazione",
+        ylab = "Numero normalizzato",
+        names.arg = Operazione10.1$nomenazione,
+        col = "lightblue",
+        las = 2,
+        ylim=ylim
+)
+```
